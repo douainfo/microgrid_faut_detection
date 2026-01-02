@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Smart Microgrid Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<audio id="alarmSound" src="alarm.mp3" loop></audio>
+<style>
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #0f172a;
+  color: #e5e7eb;
+}
+header {
+  padding: 20px;
+  background: #020617;
+  text-align: center;
+  font-size: 24px;
+  font-weight: bold;
+}
+.container {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  padding: 16px;
+}
+.card {
+  background: #111827;
+  padding: 16px;
+  border-radius: 10px;
+}
+.status-ok { color: #22c55e; }
+.status-fault { color: #ef4444; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+th, td {
+  border-bottom: 1px solid #374151;
+  padding: 6px;
+  text-align: center;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+Smart Microgrid Monitoring
+<div id="systemStatus" class="status-ok">SYSTEM OK</div>
+</header>
+
+<div class="container">
+  <div class="card"><canvas id="voltageChart"></canvas></div>
+  <div class="card"><canvas id="currentChart"></canvas></div>
+  <div class="card"><canvas id="powerChart"></canvas></div>
+  <div class="card"><canvas id="frequencyChart"></canvas></div>
+
+  <div class="card" style="grid-column: span 2;">
+    <h3>Alarm History</h3>
+    <table>
+      <thead>
+        <tr><th>Time</th><th>Type</th><th>Probability</th></tr>
+      </thead>
+      <tbody id="alarmTable"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const API_URL = "http://localhost:5000/api/latest_with_prediction";
+
+const charts = {
+  voltage: new Chart(document.getElementById("voltageChart"), {
+    type: "line",
+    data: { labels: [], datasets: [{ label: "Voltage (V)", data: [] }] }
+  }),
+  current: new Chart(document.getElementById("currentChart"), {
+    type: "line",
+    data: { labels: [], datasets: [{ label: "Current (A)", data: [] }] }
+  }),
+  power: new Chart(document.getElementById("powerChart"), {
+    type: "line",
+    data: { labels: [], datasets: [{ label: "Power (kW)", data: [] }] }
+  }),
+  frequency: new Chart(document.getElementById("frequencyChart"), {
+    type: "line",
+    data: { labels: [], datasets: [{ label: "Frequency (Hz)", data: [] }] }
+  })
+};
+
+async function loadData() {
+  const res = await fetch(API_URL);
+  const data = await res.json();
+  if (!data.length) return;
+
+  const labels = data.map(d =>
+    new Date(d.datetime).toLocaleTimeString()
+  ).reverse();
+
+  charts.voltage.data.labels = labels;
+  charts.current.data.labels = labels;
+  charts.power.data.labels = labels;
+  charts.frequency.data.labels = labels;
+
+  charts.voltage.data.datasets[0].data = data.map(d => d.voltage).reverse();
+  charts.current.data.datasets[0].data = data.map(d => d.current).reverse();
+  charts.power.data.datasets[0].data = data.map(d => d.power).reverse();
+  charts.frequency.data.datasets[0].data = data.map(d => d.frequency).reverse();
+
+  Object.values(charts).forEach(c => c.update());
+
+  const latest = data[0];
+  const status = document.getElementById("systemStatus");
+
+  if (latest.predicted_fault === 1) {
+    status.textContent = "FAULT DETECTED";
+    status.className = "status-fault";
+
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${new Date(latest.datetime).toLocaleString()}</td>
+      <td>${latest.fault_type || "Unknown"}</td>
+      <td>${(latest.fault_probability * 100).toFixed(1)}%</td>
+    `;
+    document.getElementById("alarmTable").prepend(row);
+  } else {
+    status.textContent = "SYSTEM OK";
+    status.className = "status-ok";
+  }
+}
+
+loadData();
+setInterval(loadData, 3000);
+</script>
+
+</body>
+</html>

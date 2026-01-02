@@ -1,0 +1,7 @@
+paho-mqtt
+pymongo
+scikit-learn
+joblib
+flask
+pandas
+config

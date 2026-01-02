@@ -1,1 +1,2 @@
-# microgrid_faut_detection
+# Microgrid Fault Detection
+Run simulation, ingestion, training and API.
